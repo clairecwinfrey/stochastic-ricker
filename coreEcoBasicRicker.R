@@ -1,4 +1,5 @@
 # Core Ecology class population ecology modeling 
+# October 2025
 
 # The purpose of this script is to explore the population ecology models in
 # Melbourne & Hastings (2008). This script first fits a basic deterministic 
@@ -8,7 +9,8 @@
 # stochastic processes. Next, the script explores some of the stochastic 
 # complexity in the paper by modeling demographic stochasticity and 
 # environmental stochasticity. This script is mostly 12_basic_ricker_fit.R and
-# 05_plotprodfunc.R by Brett Melbourne with some additions by Claire Winfrey.
+# 05_plotprodfunc.R by Brett Melbourne with edits and additions by Claire
+# Winfrey.
 # Brett's original code : https://github.com/melbourne-lab/stochastic-ricker)
 
 ############################################
@@ -170,16 +172,33 @@ table(objectNameHere) #how many are in each category?
 # stochastic models from the paper, specifically those modeling demographic 
 # stochasticity on the level of individual beetle (Poisson model) and 
 # demographic stochasticity plus sex determination (as Bernoulli, combined model
-# is Poisson Binomial). See Fig. 1 for a schematic of the model types. 
-# we will reproduce a few of the plots in 
-# Melbourne & Hasting (2008), Supplementary Figure 1.
+# is Poisson Binomial). Look over Fig. 1 for a schematic of the model types and to
+# understand the biology the models represent. 
 
-# Define custom functions that simulate data using these distributions 
-# (same functions used in the paper!)
+# 1. Define (and think through!) custom functions from the paper that simulate
+# data using these distributions (same functions used in the paper!). Talk with
+# your small groups through the code for these functions (and ask for help if
+# you need it). 
+
+# It's okay if some of how the code works isn't totally clear. The goal is more
+# to demystify these models by breaking them down into their component variables 
+# and distributions, while thinking about how these align with the biology processes
+# that they are modeling. First, look over the functions below and try to 
+# answer the questions accompanying them among yourselves. Then, make the plots
+# and re-discuss.
+
+# i. This first custom function matches what we did above! Does it have
+# any stochasticity? How do you know?
+# Make sure you remember what Nt, R, and alpha represent (see above or the
+# paper)
 Ricker <- function(Nt, R, alpha){
   Nt * R * exp(-1 * alpha * Nt)
 }
 
+# ii. Here we are scaling up and incorporating some stochasticity. This function
+# is used in the Poisson model. How is the stochasticity added in and what does it 
+# model biologically (hint, look at the respective model in Fig. 1!). 
+# Remember that Bernoulli in the paper is a type of Binomial distribution.
 RickerStBS <- function(Nt, R, alpha){
   # Births and density independent survival (R = births*(1-mortality); mortality
   # is binomial, so compound distribution is Poisson with mean R).
@@ -189,12 +208,10 @@ RickerStBS <- function(Nt, R, alpha){
   return(survivors)
 }
 
-Ricker_poisbinom.var <- function(Nt,R,alpha) {
-  poisvar <- Ricker(Nt,R,alpha)             #Poisson variance
-  sexvar <- Ricker(Nt,R,alpha)^2 / Nt       #sex variance
-  return( poisvar + sexvar )
-}
-
+# iii. Here is the first function specifically needed for the Poisson Binomial.
+# How does it incorporate stochasticity? Also, pay attention to how the binomial
+# simulation is then plugged into the Poisson simulation. Why does it make 
+# sense biologically to model the binomial first?
 RickerStSexBS <- function(Nt, R, alpha, p=0.5){
   females <- rbinom(length(Nt),Nt,p)
   # Births and density independent survival (R = births*(1-mortality) and
@@ -204,15 +221,27 @@ RickerStSexBS <- function(Nt, R, alpha, p=0.5){
   return(survivors)
 }
 
-# Parameters for simulating data
+# iv. This the second of two functions specifically needed for the Poisson + 
+# binomial (again, see Fig. 1). 
+# Does this function incorporate any stochasticity? (When you get to the 
+# plotting stage, look at the code and think about why or why not)
+# Notice how it returns the sum of the poisvar and sexvar. Can you figure
+# out why it does this (again, may need to plot first!)
+Ricker_poisbinom.var <- function(Nt,R,alpha) {
+  poisvar <- Ricker(Nt,R,alpha)             #Poisson variance
+  sexvar <- Ricker(Nt,R,alpha)^2 / Nt       #sex variance
+  return( poisvar + sexvar )
+}
+
+# 2. Now we'll reproduce a few of the plots in Melbourne & Hasting (2008),
+# Supplementary Figure 1.
+# i. Parameters for simulating data
 R <- 5
 alpha <- 0.05
-kD <- 0.5 #Shape parameter of gamma for birth rate
-kE <- kD/alpha #k for env variation: Var same as NBdem-Ricker @ stat pt
 Nt <- c(2,6,12,seq(20,160,by=10)) 
 reps <- 100
 
-# Set up for plots below:
+# ii. Set up for plots below:
 xlim <- c(0,160) #x-axis limits
 ylim <- c(0,100)
 xtks <- seq(from = 0 , to = 160 , by = 50 ) #x ticks
@@ -221,11 +250,16 @@ xpl <- 150 #x position of panel label
 ypl <- 90
 reps <- 100
 
-# Poisson model
-plot(1,1,xlim=xlim,ylim=ylim,type="n",axes=FALSE)
-axis(1, at = xtks, labels = FALSE )
-axis(2, at = ytks, las=1 )
-box()
+# iii. Poisson model
+# Create a new window to view the plots (i.e. not in the Plots panel to the right)
+quartz() #CHANGE TO windows() if on a Windows OS computer!! 
+par(mfrow = c(3, 1))
+plot(1, 1,
+     xlim = xlim, ylim = ylim, type = "n", axes = FALSE,
+     xlab = expression(N[t]), ylab = expression(N[t+1]))
+axis(1, at = xtks, labels = xtks)
+axis(2, at = ytks, las = 1, labels = ytks)
+box() #draw a box around plot
 for (i in 1:reps) {
   Ntp1 <- RickerStBS(Nt,R,alpha)
   points(jitter(Nt),Ntp1,col="grey75")
@@ -237,11 +271,13 @@ std <- sqrt(y)
 segments(x,y-std,x,y+std,col="black")
 text(xpl,ypl,"Poisson",pos=2,offset=0)
 
-# Poisson-binomial
-plot(1,1,xlim=xlim,ylim=ylim,type="n",axes=FALSE)
-axis(1, at = xtks )
-axis(2, at = ytks, las=1 )
-box()
+# iv. Poisson-binomial
+plot(1, 1,
+     xlim = xlim, ylim = ylim, type = "n", axes = FALSE,
+     xlab = expression(N[t]), ylab = expression(N[t+1]))
+axis(1, at = xtks, labels = xtks)
+axis(2, at = ytks, las = 1, labels = ytks)
+box() #draw a box around plot
 for (i in 1:reps) {
   Ntp1 <- RickerStSexBS(Nt,R,alpha)
   points(jitter(Nt),Ntp1,col="grey75")
@@ -252,3 +288,93 @@ y <- Ricker(x,R,alpha)
 std <- sqrt(Ricker_poisbinom.var(x,R,alpha))
 segments(x,y-std,x,y+std,col="black")
 text(xpl,ypl,"Poisson-binomial",pos=2,offset=0)
+
+# v. Questions after plotting
+# 1) In both models, how was Ntp1 simulated stochastically?
+# 2) Compare the two plots. What differences do you see? How do the 
+# simulations change when more stochasticity is added in?
+# 3) Why do you think the (non-stochastic) Ricker function was used
+# to add the standard deviations to the plots?
+
+# vi. Finally, we will plot simulate and plot the model that was the best fit
+# for the red flour beetle data, the Negative binomial-binomial gamma. This
+# incorporates two additional sources of stochasticity using an additional
+# distribution, the Gamma, which is similar to an exponential distribution. 
+# However, gammas are more difficult to simulate and a little more complex,
+# so we will not go through them in depth as we did with Poisson and
+# Bernoulli/binomial. The point of this section is, instead, to compare the 
+# models that you hopefully understand well now with the final model, thinking
+# about how adding more stochasticity reflects the biology.
+
+# First, we'll define some additional parameters needed for the simulation
+kD <- 0.5 #Shape parameter of gamma for birth rate
+kE <- kD/alpha #k for env variation: Var same as NBdem-Ricker @ stat pt
+
+# Next, we need more custom functions that were made for the paper
+# 1. RickerStSexBS_DEhB. How many sources of stochasticity does this function bring in and what biological
+# processes occurring for the beetles (or Ricker's original fish as in Fig.1)
+# do they reflect?
+RickerStSexBS_DEhB <- function(Nt, R, alpha, kD, kE, p=0.5) {
+  # Heterogeneity in birth rate/DI mortality between times or locations
+  Rtx <- rgamma(length(Nt),shape=kE,scale=R/kE)
+  females <- rbinom(length(Nt),Nt,p)
+  # Heterogeneity in individual birth rate plus density independent survival
+  # (R = births*(1-mortality)*(1/p); mortality is binomial, so compound distribution
+  # is negative binomial with mean (1/p)*R*Nt)
+  births <- rnbinom( length(Nt), size = kD * females + (females==0),
+                     mu = (1/p) * females * Rtx ) # Add 1 to size when females=0 to avoid NaN's.
+  # Density dependent survival
+  survivors <- rbinom( length(Nt), births, exp( -1 * alpha * Nt ) )
+  return(survivors)
+}
+
+# 2. Function for adding in std later on. Note how it returns a combination
+# of the 4 types of stochasticity/4 models!
+Ricker_nbinombinomgamma.var <- function(Nt,R,alpha,kD,kE) {
+  poisvar <- Ricker(Nt,R,alpha)             #Poisson variance
+  sexvar <- Ricker(Nt,R,alpha)^2 / Nt       #sex variance
+  dhvar <- Ricker(Nt,R,alpha)^2 / (kD*Nt)   #raw dhvar for no-sex model
+  evar <- Ricker(Nt,R,alpha)^2 / kE         #env variance
+  return( poisvar + sexvar + 2*dhvar + evar )
+}
+
+# Finally, plot this!
+# Negative binomial-binomial gamma
+# Note that this will probably plot the plot in the Plots panel to the right.
+# Starting back on line 257 (quartz) and running the code quickly 
+# through this plot should print all three models together in the separate
+# window.
+plot(1, 1,
+     xlim = xlim, ylim = ylim, type = "n", axes = FALSE,
+     xlab = expression(N[t]), ylab = expression(N[t+1]))
+axis(1, at = xtks )
+axis(2, at = ytks, labels = FALSE )
+box()
+for (i in 1:reps) {
+  Ntp1 <- RickerStSexBS_DEhB(Nt, R, alpha, kD, kE)
+  points(jitter(Nt),Ntp1,col="grey75")
+}
+lines(0:1100,Ricker(0:1100,R,alpha),col="grey50")
+x <- Nt
+y <- Ricker(x,R,alpha)
+std <- sqrt(Ricker_nbinombinomgamma.var(x,R,alpha,kD,kE))
+segments(x,y-std,x,y+std,col="black")
+text(xpl,ypl,"NB-binomial-gamma",pos=2,offset=0)
+
+### Some final questions to consider with all three plots.
+# 1. What additional stochastic elements did the NBBg model add and, crucially,
+# which biological processes do they reflect?
+# 2. How do the plots differ from one another? How does adding more
+# stochastic elements change the plots?
+# 3. Consider your 3 plots alongside Fig. 3 in the paper. How do your plots
+# relate to the results in Fig. 3? Why is stochasticity important to consider
+# when thinking about extinction risk?
+# 4. Finally, think about the 4 types of stochasticity considered in the paper, 
+# which are rooted in the biology of red flour beetles (and that work for
+# Ricker's original fish too!). 
+## i. Would similar models be a good starting place for your own system? Why 
+# or why not?
+## ii. Can you imagine any systems where you would need to add additional types
+# of stochasticity? What might be some good model types?
+
+
