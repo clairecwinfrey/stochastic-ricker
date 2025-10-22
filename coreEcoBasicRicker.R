@@ -7,9 +7,9 @@
 # parameters for the deterministic model, ignoring the clearly complex
 # stochastic processes. Next, the script explores some of the stochastic 
 # complexity in the paper by modeling demographic stochasticity and 
-# environmental stochasticity. This script builds upon 12_basic_ricker_fit.R
-# and [ADD OTHER SCRIPT NAMES FOR NEG. BINOMIAL] by Brett Melbourne, with 
-# additions by Claire Winfrey
+# environmental stochasticity. This script is mostly 12_basic_ricker_fit.R and
+# 05_plotprodfunc.R by Brett Melbourne with some additions by Claire Winfrey.
+# Brett's original code : https://github.com/melbourne-lab/stochastic-ricker)
 
 ############################################
 # SET UP 
@@ -107,7 +107,8 @@ rickersim |>
 # 1. Poisson-- Probability of a given number of events occurring in given 
 # interval (usually, but not necessarily, time). Single parameter is lambda, 
 # known mean rate of events per interval. 
-# In the paper: Poisson variation in birth rates within individuals
+# In the paper: Demographic stochasticity is modeled with a poisson, with lambda 
+# in birth rates within individuals
 
 # i. Simulate 100 beetle parents using the experimentally-determined (from our 
 # model with the beetle data above) birthrate as lambda
@@ -149,7 +150,7 @@ table(sexRatio100) #how many are in each category?
 set.seed(19) #ensure reproducibility
 sexRatio10 <- rbinom(n = 10, size = 1, prob = 0.5) #10 beetles
 table(sexRatio10) #how many are in each category?
-# How is sex ratio affected by changes in population size?
+# What happens to the evenness of the sex ratio with changes in population size?
 
 # ii. An additional parameter that the paper models with a Bernoulli is whether
 # or not a red flour beetle is cannibalized (although it's more complicated in
@@ -157,11 +158,97 @@ table(sexRatio10) #how many are in each category?
 # Experiment with different probabilities of cannibalization (assume that your
 # prob is probability of not being eaten, with 1 = alive and 0 = dead), by 
 # changing the code above
-cannibal100_1 <- rbinom(n = 100, size = 1, prob = ) 
-table(cannibal100_1) #how many are in each category?
-cannibal100_2 <- rbinom(n = 100, size = 1, prob = ) 
-table(cannibal100_2) #how many are in each category?
+objectNameHere <- rbinom(n = , size = 1, prob = ) 
+table(objectNameHere) #how many are in each category?
+objectNameHere<- rbinom(n = , size = 1, prob = ) 
+table(objectNameHere) #how many are in each category?
 
 ############################################
 # III. MODEL DEMOGRAPHIC STOCHASTICITY AND SEX
 ############################################
+# For this part of the script, we will delve deeper into two of the more simple
+# stochastic models from the paper, specifically those modeling demographic 
+# stochasticity on the level of individual beetle (Poisson model) and 
+# demographic stochasticity plus sex determination (as Bernoulli, combined model
+# is Poisson Binomial). See Fig. 1 for a schematic of the model types. 
+# we will reproduce a few of the plots in 
+# Melbourne & Hasting (2008), Supplementary Figure 1.
+
+# Define custom functions that simulate data using these distributions 
+# (same functions used in the paper!)
+Ricker <- function(Nt, R, alpha){
+  Nt * R * exp(-1 * alpha * Nt)
+}
+
+RickerStBS <- function(Nt, R, alpha){
+  # Births and density independent survival (R = births*(1-mortality); mortality
+  # is binomial, so compound distribution is Poisson with mean R).
+  births <- rpois( length(Nt), Nt * R )
+  # Density dependent survival
+  survivors <- rbinom( length(Nt), births, exp( -1 * alpha * Nt ) )
+  return(survivors)
+}
+
+Ricker_poisbinom.var <- function(Nt,R,alpha) {
+  poisvar <- Ricker(Nt,R,alpha)             #Poisson variance
+  sexvar <- Ricker(Nt,R,alpha)^2 / Nt       #sex variance
+  return( poisvar + sexvar )
+}
+
+RickerStSexBS <- function(Nt, R, alpha, p=0.5){
+  females <- rbinom(length(Nt),Nt,p)
+  # Births and density independent survival (R = births*(1-mortality) and
+  # density dependent survival ( e^-alpha*Nt ); mortality is
+  # binomial, so compound distribution is Poisson with mean Re^-aNt).
+  survivors <- rpois( length(Nt), females * (1/p) * R * exp( -alpha * Nt ) )
+  return(survivors)
+}
+
+# Parameters for simulating data
+R <- 5
+alpha <- 0.05
+kD <- 0.5 #Shape parameter of gamma for birth rate
+kE <- kD/alpha #k for env variation: Var same as NBdem-Ricker @ stat pt
+Nt <- c(2,6,12,seq(20,160,by=10)) 
+reps <- 100
+
+# Set up for plots below:
+xlim <- c(0,160) #x-axis limits
+ylim <- c(0,100)
+xtks <- seq(from = 0 , to = 160 , by = 50 ) #x ticks
+ytks <- seq(from = 0 , to = 100 , by = 20 )
+xpl <- 150 #x position of panel label
+ypl <- 90
+reps <- 100
+
+# Poisson model
+plot(1,1,xlim=xlim,ylim=ylim,type="n",axes=FALSE)
+axis(1, at = xtks, labels = FALSE )
+axis(2, at = ytks, las=1 )
+box()
+for (i in 1:reps) {
+  Ntp1 <- RickerStBS(Nt,R,alpha)
+  points(jitter(Nt),Ntp1,col="grey75")
+}
+lines(0:1100,Ricker(0:1100,R,alpha),col="grey50")
+x <- Nt
+y <- Ricker(x,R,alpha)
+std <- sqrt(y)
+segments(x,y-std,x,y+std,col="black")
+text(xpl,ypl,"Poisson",pos=2,offset=0)
+
+# Poisson-binomial
+plot(1,1,xlim=xlim,ylim=ylim,type="n",axes=FALSE)
+axis(1, at = xtks )
+axis(2, at = ytks, las=1 )
+box()
+for (i in 1:reps) {
+  Ntp1 <- RickerStSexBS(Nt,R,alpha)
+  points(jitter(Nt),Ntp1,col="grey75")
+}
+lines(0:1100,Ricker(0:1100,R,alpha),col="grey50")
+x <- Nt
+y <- Ricker(x,R,alpha)
+std <- sqrt(Ricker_poisbinom.var(x,R,alpha))
+segments(x,y-std,x,y+std,col="black")
+text(xpl,ypl,"Poisson-binomial",pos=2,offset=0)
